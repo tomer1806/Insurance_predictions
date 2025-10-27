@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 
 # --- 1. PAGE CONFIG ---
 st.set_page_config(
@@ -26,8 +27,14 @@ try:
     df_processed['sex'] = df_processed['sex'].map({'male': 1, 'female': 0})
     df_processed = pd.get_dummies(df_processed, columns=['region'], drop_first=True)
 
+    # 1. Create the interaction feature (BMI * Smoker)
+    df_processed['bmi_smoker'] = df_processed['bmi'] * df_processed['smoker']
+    # 2. Create the polynomial feature (Age^2)
+    df_processed['age2'] = df_processed['age']**2
+
     # --- C: Define Features (X) and Target (y) ---
-    features = ['age', 'bmi', 'children', 'smoker', 'sex', 'region_northwest', 'region_southeast', 'region_southwest']
+    features = ['age', 'age2', 'bmi', 'children', 'smoker', 'sex', 'bmi_smoker', 
+                'region_northwest', 'region_southeast', 'region_southwest']
     X = df_processed[features]
     y = df_processed['charges']
 
@@ -42,6 +49,9 @@ try:
     y_pred = model.predict(X_test)
     r2 = r2_score(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
+
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse) # Root Mean Squared Error
     
     # --- G: Create DataFrames for Charts ---
     # For the Actual vs. Predicted chart
@@ -160,10 +170,14 @@ elif page == "🤖 Model Prediction & Evaluation":
         region_southeast = 1 if region_text == "southeast" else 0
         region_southwest = 1 if region_text == "southwest" else 0
         
+        # Create the new features from user input
+        age2_val = age**2
+        bmi_smoker_val = bmi * smoker_val
+
         # Create the input DataFrame
-        input_data = pd.DataFrame([[age, bmi, children, smoker_val, sex_val, 
-                                    region_northwest, region_southeast, region_southwest]], 
-                                  columns=features)
+        input_data = pd.DataFrame([[age, age2_val, bmi, children, smoker_val, sex_val, 
+                                bmi_smoker_val, region_northwest, region_southeast, 
+                                 region_southwest]], columns=features)
         
         # Make the prediction
         prediction = model.predict(input_data)
@@ -178,16 +192,20 @@ elif page == "🤖 Model Prediction & Evaluation":
     st.write("This shows how well our model performed on the 20% 'test set' (data it had never seen).")
 
     # Show metrics in columns
-    col_r2, col_mae = st.columns(2)
+    col_r2, col_mae, col_rmse = st.columns(3)
     with col_r2:
         st.metric(label="R-squared (Model Fit)", value=f"{r2:.2f}")
     with col_mae:
         st.metric(label="Mean Absolute Error (MAE)", value=f"${mae:,.2f}")
+    with col_rmse:
+        st.metric(label="Root Mean Squared Error (RMSE)", value=f"${rmse:,.2f}")
+
 
     st.info(f"""
     **Interpretation:**
     * **R-squared:** Our model explains **{r2:.0%}** of the variation in medical costs.
     * **MAE:** On average, our model's prediction is off by **${mae:,.2f}**.
+    * **RMSE:** This is another error metric. It's more sensitive to very large errors than MAE.
     """)
 
     st.header("Actual vs. Predicted Costs")

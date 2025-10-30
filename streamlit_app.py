@@ -1,74 +1,65 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 
 # --- 1. PAGE CONFIG ---
+# Setup the main page settings
 st.set_page_config(
     layout="wide",
     page_title="Insurance Cost Predictor",
     page_icon="🩺"
 )
 
-# --- 2. ALL DATA LOADING & MODEL TRAINING (Happens once) ---
+# --- 2. ALL DATA LOADING & MODEL TRAINING ---
+# This block loads, processes, and trains the model once
+df_raw = pd.read_csv("insurance.csv") 
 
-# We do all the "work" here at the top.
-try:
-    # --- A: Load Data ---
-    df_raw = pd.read_csv("insurance.csv")
-    
-    # --- B: Process Data ---
-    df_processed = df_raw.copy()
-    df_processed['smoker'] = df_processed['smoker'].map({'yes': 1, 'no': 0})
-    df_processed['sex'] = df_processed['sex'].map({'male': 1, 'female': 0})
-    df_processed = pd.get_dummies(df_processed, columns=['region'], drop_first=True)
+df_processed = df_raw.copy()
+df_processed['smoker'] = df_processed['smoker'].map({'yes': 1, 'no': 0})
+df_processed['sex'] = df_processed['sex'].map({'male': 1, 'female': 0})
+df_processed = pd.get_dummies(df_processed, columns=['region'], drop_first=True)
 
-    # 1. Create the interaction feature (BMI * Smoker)
-    df_processed['bmi_smoker'] = df_processed['bmi'] * df_processed['smoker']
-    # 2. Create the polynomial feature (Age^2)
-    df_processed['age2'] = df_processed['age']**2
+# feature engineering
+df_processed['bmi_smoker'] = df_processed['bmi'] * df_processed['smoker']
+df_processed['age_smoker'] = df_processed['age'] * df_processed['smoker']
 
-    # --- C: Define Features (X) and Target (y) ---
-    features = ['age', 'age2', 'bmi', 'children', 'smoker', 'sex', 'bmi_smoker', 
-                'region_northwest', 'region_southeast', 'region_southwest']
-    X = df_processed[features]
-    y = df_processed['charges']
+# define features (X) and target (y)
+features = [
+    'age', 'bmi', 'children', 'smoker', 'sex', 
+    'age_smoker', 'bmi_smoker', 
+    'region_northwest', 'region_southeast', 'region_southwest'
+]
+X = df_processed[features]
+y = df_processed['charges']
 
-    # --- D: Split Data (80% train, 20% test) ---
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# split for training and testing
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # --- E: Train Model ---
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+# train model
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-    # --- F: Evaluate Model ---
-    y_pred = model.predict(X_test)
-    r2 = r2_score(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
+# evaluate model
+y_pred = model.predict(X_test)
+r2 = r2_score(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse) 
 
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse) # Root Mean Squared Error
-    
-    # --- G: Create DataFrames for Charts ---
-    # For the Actual vs. Predicted chart
-    eval_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
-    
-    # For the coefficients table
-    coefs = pd.DataFrame(model.coef_, index=features, columns=["Impact on Cost ($)"])
-
-except FileNotFoundError:
-    st.error("FATAL ERROR: 'insurance.csv' file not found. Make sure it's in a 'data' folder.")
-    st.stop()
-except Exception as e:
-    st.error(f"An error occurred during data processing: {e}")
-    st.stop()
+# prep dataframes for charts
+eval_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
+coefs = pd.DataFrame(model.coef_, index=features, columns=["Impact on Cost ($)"])
+train_df = X_train.copy()
+train_df['charges'] = y_train
 
 
 # --- 3. SIDEBAR NAVIGATION ---
+# Create the sidebar menu
 st.sidebar.title("Navigation 🧭")
 page = st.sidebar.radio("Go to", 
     ["🏠 Business Case & Data", 
@@ -78,14 +69,14 @@ page = st.sidebar.radio("Go to",
 
 
 # --- 4. PAGE 1: BUSINESS CASE & DATA ---
-
+# Logic for showing the first page
 if page == "🏠 Business Case & Data":
     st.title("Predicting Medical Costs 🩺")
     
-    # --- FIX YOUR IMAGE PATH HERE ---
-    st.image("img3.jpg", width=600) # <-- Make sure 'img3.jpg' is the correct name/path
+    # Display the header image (assumes 'img3.jpg' is in the main folder)
+    st.image("img3.jpg", width=600) 
     
-    st.markdown("---")
+    st.markdown("---") 
     st.header("The Business Problem")
     st.write("""
     A health insurance company needs to set its yearly premiums. 
@@ -101,52 +92,69 @@ if page == "🏠 Business Case & Data":
         st.dataframe(df_raw.head())
         st.markdown("Source: [Kaggle - Medical Cost Personal Datasets](https://www.kaggle.com/datasets/mirichoi0218/insurance)")
         
-        st.subheader("Data Preparation")
+        st.subheader("Data Preparation (Feature Engineering)")
         st.write("""
-        The model can't read text like 'male' or 'smoker'. We had to convert them to numbers:
-        1. `sex` ('male'/'female') was changed to 1/0.
-        2. `smoker` ('yes'/'no') was changed to 1/0.
-        3. `region` (which has 4 categories) was converted into **3** columns. 
-        This is a standard step called 'One-Hot Encoding' to avoid the 'dummy variable trap'. 
-        The 4th region (`northeast`) is represented when the other 3 columns are all 0.
+        To build the best model, we converted text to numbers and added **interaction features**.
+        These "combo" features make the model much smarter and give us a higher R-squared.
+        
+        1.  **`bmi_smoker` (bmi * smoker):** This teaches the model that the cost of high BMI is *worse* for smokers.
+        2.  **`age_smoker` (age * smoker):** This teaches the model that the cost of smoking gets *worse* with age.
         """)
         st.write("This is the final processed data the model was trained on:")
-        st.dataframe(df_processed.head())
+        st.dataframe(df_processed.head()) 
 
 
 # --- 5. PAGE 2: DATA VISUALIZATIONS ---
-
+# Logic for showing the second page
 elif page == "📊 Data Visualizations":
     st.title("Visual Insights: What Drives Medical Costs? 📈")
     st.markdown("---")
 
-    # Use tabs to look professional, like your professor's example
-    tab1, tab2 = st.tabs(["Insight 1: Smoking", "Insight 2: BMI"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Insight 1: Smoking", 
+        "Insight 2: BMI", 
+        "Descriptive Statistics", 
+        "Correlation Heatmap"
+    ])
 
     with tab1:
         st.header("Smoking is the single biggest factor.")
-        st.write("Non-smokers (blue) have low costs. Smokers (orange) are in a completely different, high-cost category.")
+        st.write("Non-smokers (Orange) have low costs. Smokers (Blue) are in a completely different, high-cost category.")
         
         fig1, ax1 = plt.subplots(figsize=(10, 6))
-        # Use the raw data for this chart so 'smoker' is 'yes'/'no'
         sns.scatterplot(data=df_raw, x='age', y='charges', hue='smoker', alpha=0.7, ax=ax1)
         ax1.set_title("Age vs. Charges by Smoking Status")
         st.pyplot(fig1)
     
     with tab2:
-        st.header("BMI (Body Mass Index) also has a clear impact.")
-        st.write("Higher BMI is generally associated with higher medical costs, especially for smokers.")
+        st.header("BMI (Body Mass Index) also has a clear impact on smokers.")
+        st.write("This chart shows that BMI has a complex effect. For non-smokers, costs only jump significantly once BMI passes a high threshold (around 30). For smokers, however, any increase in BMI is linked to a steep rise in cost.")
         
         fig2, ax2 = plt.subplots(figsize=(10, 6))
         sns.scatterplot(data=df_raw, x='bmi', y='charges', hue='smoker', alpha=0.7, ax=ax2)
         ax2.set_title("BMI vs. Charges by Smoking Status")
         st.pyplot(fig2)
 
-# --- 6. PAGE 3: MODEL PREDICTION & EVALUATION ---
+    with tab3:
+        st.header("Descriptive Statistics")
+        st.write("Here are the mean, min, max, and standard deviation for our raw data.")
+        st.dataframe(df_raw[['age', 'bmi', 'children', 'charges']].describe())
 
+    with tab4:
+        st.header("Feature Correlation Heatmap")
+        st.write("This map shows how strongly each feature is related to 'charges'.")
+        
+        corr = df_processed.corr()
+        
+        fig3, ax3 = plt.subplots(figsize=(12, 10))
+        sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax3)
+        st.pyplot(fig3)
+
+
+# --- 6. PAGE 3: MODEL PREDICTION & EVALUATION ---
+# Logic for showing the third page
 elif page == "🤖 Model Prediction & Evaluation":
     
-    # --- Prediction Tool ---
     st.title("Insurance Premium Calculator 🧮")
     st.write("Use this tool to predict costs for a new client.")
     
@@ -161,70 +169,84 @@ elif page == "🤖 Model Prediction & Evaluation":
         region_text = st.selectbox("What is the client's region?", ["southwest", "southeast", "northwest", "northeast"])
     
     if st.button("Predict Costs", type="primary"):
-        # Convert user's text inputs to numbers
+        # convert user inputs to numbers
         smoker_val = 1 if smoker_text == "Yes" else 0
         sex_val = 1 if sex_text == "Male" else 0
         
-        # Handle One-Hot Encoding for region
+        # handle region encoding
         region_northwest = 1 if region_text == "northwest" else 0
         region_southeast = 1 if region_text == "southeast" else 0
         region_southwest = 1 if region_text == "southwest" else 0
         
-        # Create the new features from user input
-        age2_val = age**2
+        # create the interaction features
+        age_smoker_val = age * smoker_val
         bmi_smoker_val = bmi * smoker_val
-
-        # Create the input DataFrame
-        input_data = pd.DataFrame([[age, age2_val, bmi, children, smoker_val, sex_val, 
-                                bmi_smoker_val, region_northwest, region_southeast, 
-                                 region_southwest]], columns=features)
         
-        # Make the prediction
+        # build the input row for prediction
+        input_data = pd.DataFrame([[
+            age, bmi, children, smoker_val, sex_val, 
+            age_smoker_val, bmi_smoker_val, 
+            region_northwest, region_southeast, region_southwest
+        ]], columns=features)
+        
         prediction = model.predict(input_data)
         
-        # Display prediction
-        st.metric(label="Predicted Yearly Cost", value=f"${prediction[0]:,.2f}")
+        st.subheader("Prediction Results")
+        
+        col_pred, col_avg = st.columns(2)
+        with col_pred:
+            st.metric(label="Model's Predicted Cost", value=f"${prediction[0]:,.2f}")
+
+        # find similar people in the training data
+        age_bin = (age - 3, age + 3) 
+        bmi_bin = (bmi - 2, bmi + 2) 
+        
+        similar_group = train_df[
+            (train_df['smoker'] == smoker_val) &
+            (train_df['sex'] == sex_val) &
+            (train_df['age'].between(age_bin[0], age_bin[1])) &
+            (train_df['bmi'].between(bmi_bin[0], bmi_bin[1]))
+        ]
+        
+        with col_avg:
+            # show group average
+            if len(similar_group) > 5: 
+                avg_cost = similar_group['charges'].mean()
+                st.metric(label=f"Average Cost for Similar Group (n={len(similar_group)})", value=f"${avg_cost:,.2f}")
+            else:
+                st.info("Not enough data on similar people to show a group average.")
+
 
     st.markdown("---")
 
-    # --- Model Evaluation (like the Superstore example) ---
     st.title("Model Evaluation 🔬")
-    st.write("This shows how well our model performed on the 20% 'test set' (data it had never seen).")
+    st.write("This shows how well our model performed on the 20% 'test set'.")
 
-    # Show metrics in columns
     col_r2, col_mae, col_rmse = st.columns(3)
     with col_r2:
-        st.metric(label="R-squared (Model Fit)", value=f"{r2:.2f}")
+        st.metric(label="R-squared (Model Fit)", value=f"{r2:.3f}") 
     with col_mae:
-        st.metric(label="Mean Absolute Error (MAE)", value=f"${mae:,.2f}")
+        st.metric(label="Mean Absolute Error (MAE)", value=f"${mae:,.2f}") 
     with col_rmse:
-        st.metric(label="Root Mean Squared Error (RMSE)", value=f"${rmse:,.2f}")
-
+        st.metric(label="Root Mean Squared Error (RMSE)", value=f"${rmse:,.2f}") 
 
     st.info(f"""
     **Interpretation:**
-    * **R-squared:** Our model explains **{r2:.0%}** of the variation in medical costs.
-    * **MAE:** On average, our model's prediction is off by **${mae:,.2f}**.
-    * **RMSE:** This is another error metric. It's more sensitive to very large errors than MAE.
+    * **R-squared (R²):** Our model explains **{r2:.1%}** of the variation in medical costs.
+    * **Mean Absolute Error (MAE):** On average, our model's prediction is off by **${mae:,.2f}**.
     """)
 
-    st.header("Actual vs. Predicted Costs")
-    st.write("This chart plots the *Actual* cost (x-axis) against the cost our model *Predicted* (y-axis). A perfect model would have all dots on the red line.")
+    st.header("Actual vs. Predicted Costs (Test Data)")
+    st.write("The red line is a 'perfect' prediction. Our model's predictions (blue dots) follow this line very closely.")
     
     fig3, ax3 = plt.subplots(figsize=(10, 6))
     sns.scatterplot(data=eval_df, x='Actual', y='Predicted', alpha=0.7, ax=ax3)
-    # Add the 45-degree "perfect prediction" line
     min_val = min(eval_df['Actual'].min(), eval_df['Predicted'].min())
     max_val = max(eval_df['Actual'].max(), eval_df['Predicted'].max())
-    ax3.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2)
+    ax3.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2) 
     st.pyplot(fig3)
 
-    # --- Model Coefficients ---
     st.header("What Did Our Model Learn?")
     st.write("These 'coefficients' tell us how much each factor impacts the final cost.")
     st.dataframe(coefs.round(2))
     
-    st.success(f"""
-    **Key Takeaway:**
-    Being a smoker is the biggest factor, adding an estimated **${coefs.loc['smoker'][0]:,.2f}** to your yearly costs!
-    """)

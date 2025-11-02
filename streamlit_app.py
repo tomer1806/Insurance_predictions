@@ -48,8 +48,7 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 r2 = r2_score(y_test, y_pred)
 mae = mean_absolute_error(y_test, y_pred)
-mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse) 
+mse = mean_squared_error(y_test, y_pred) 
 
 # prep dataframes for charts
 eval_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
@@ -154,7 +153,7 @@ elif page == "📊 Data Visualizations":
 
     with tab4:
         st.header("Feature Correlation Heatmap")
-        st.write("This map shows how strongly each feature is related to 'charges'")
+        st.write("This map shows how strongly each feature is related to 'charges' (the target variable). Smoking has the highest correlation with charges")
         
         corr = df_processed.corr()
         
@@ -211,13 +210,11 @@ elif page == "🤖 Model Prediction & Evaluation":
     st.title("Model Evaluation 🔬")
     st.write("This shows how well our model performed on the 20% 'test set'")
 
-    col_r2, col_mae, col_rmse = st.columns(3)
+    col_r2, col_mae = st.columns(2)
     with col_r2:
         st.metric(label="R-squared (Model Fit)", value=f"{r2:.3f}") 
     with col_mae:
         st.metric(label="Mean Absolute Error (MAE)", value=f"${mae:,.2f}") 
-    with col_rmse:
-        st.metric(label="Root Mean Squared Error (RMSE)", value=f"${rmse:,.2f}") 
 
     st.info(f"""
     **Interpretation:**
@@ -226,7 +223,7 @@ elif page == "🤖 Model Prediction & Evaluation":
     """)
 
     st.header("Actual vs. Predicted Costs (Test Data)")
-    st.write("The red line is a 'perfect' prediction. Our model's predictions (blue dots) follow this line very closely")
+    st.write("Each blue dot is one person from the test set, showing our prediction versus the real cost. The red line is the 'perfect prediction' (x=y) line, and our model's strong performance is clear from how tightly the dots follow this line")
     
     fig3, ax3 = plt.subplots(figsize=(10, 6))
     sns.scatterplot(data=eval_df, x='Actual', y='Predicted', alpha=0.7, ax=ax3)
@@ -239,3 +236,14 @@ elif page == "🤖 Model Prediction & Evaluation":
     st.write("These 'coefficients' tell us how much each factor impacts the final cost")
     st.dataframe(coefs.round(2))
     
+    st.subheader("What the Coefficients Mean")
+    st.info(f"""
+        **1. Why is the `smoker` coefficient negative?**
+        This large negative number (e.g., -$21,271) isn't the "price of smoking." It's just a starting point for the model's calculation.
+
+        **2. What is the *real* cost of smoking?**
+        The real cost is a combination of three parts: the `smoker` base, the `age_smoker` cost, and the `bmi_smoker` cost. This confirms our key insight: the price of smoking depends on your age and BMI.
+
+        **3. Why are predictions not negative?**
+        In the real world, the positive costs from `age_smoker` and `bmi_smoker` are always much larger than the negative base. Because our data has BMI over 16, the math works out and the final prediction is always positive and logical.
+    """)

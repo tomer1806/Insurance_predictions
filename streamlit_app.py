@@ -83,25 +83,37 @@ if page == "🏠 Business Case & Data":
     To do this, they must accurately predict a client's potential medical costs. 
     If the price is too low, the company loses money. If it's too high, they lose customers.
     
-    **Our goal:** Build a tool that predicts medical charges based on a client's profile.
+    **Our goal:** Build a tool that predicts medical charges based on a client's profile
     """)
 
     with st.expander("Click to see the Raw Data & Preparation"):
         st.subheader("Raw Data")
-        st.write("This is the raw data we started with (1,338 rows).")
+        st.write("This is the raw data we started with (1,338 rows)")
         st.dataframe(df_raw.head())
         st.markdown("Source: [Kaggle - Medical Cost Personal Datasets](https://www.kaggle.com/datasets/mirichoi0218/insurance)")
         
         st.subheader("Data Preparation (Feature Engineering)")
+ 
+        st.markdown("##### Step 1: Converting Text to Numbers")
         st.write("""
-        To build the best model, we converted text to numbers and added **interaction features**.
-        These "combo" features make the model much smarter and give us a higher R-squared.
+        A model can't understand text like 'male' or 'northeast', so our first step was to convert these categories into numbers.
         
-        1.  **`bmi_smoker` (bmi * smoker):** This teaches the model that the cost of high BMI is *worse* for smokers.
-        2.  **`age_smoker` (age * smoker):** This teaches the model that the cost of smoking gets *worse* with age.
+        * `sex` ('female'/'male') was converted to 0 / 1.
+        * `smoker` ('no'/'yes') was also converted to 0 / 1.
+        * `region` (which had 4 areas) was converted into 3 new binary columns using One-Hot Encoding. (We drop one to avoid multicollinearity).
         """)
+        
+        st.markdown("##### Step 2: Creating Interaction Features")
+        st.write("""
+        To make the model smarter, we added "combo" features based on our insights from the charts:
+        """)
+        st.markdown("""
+        1. **`bmi_smoker` (bmi * smoker):** This teaches the model that the cost of high BMI is *worse* for smokers.
+        2. **`age_smoker` (age * smoker):** This teaches the model that the cost of smoking gets *worse* with age.
+        """)
+        
         st.write("This is the final processed data the model was trained on:")
-        st.dataframe(df_processed.head()) 
+        st.dataframe(df_processed.head())
 
 
 # --- 5. PAGE 2: DATA VISUALIZATIONS ---
@@ -118,8 +130,8 @@ elif page == "📊 Data Visualizations":
     ])
 
     with tab1:
-        st.header("Smoking is the single biggest factor.")
-        st.write("Non-smokers (Orange) have low costs. Smokers (Blue) are in a completely different, high-cost category.")
+        st.header("Smoking is the single biggest factor")
+        st.write("Non-smokers (Orange) have low costs. Smokers (Blue) are in a completely different, high-cost category")
         
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         sns.scatterplot(data=df_raw, x='age', y='charges', hue='smoker', alpha=0.7, ax=ax1)
@@ -127,8 +139,8 @@ elif page == "📊 Data Visualizations":
         st.pyplot(fig1)
     
     with tab2:
-        st.header("BMI (Body Mass Index) also has a clear impact on smokers.")
-        st.write("This chart shows that BMI has a complex effect. For non-smokers, costs only jump significantly once BMI passes a high threshold (around 30). For smokers, however, any increase in BMI is linked to a steep rise in cost.")
+        st.header("BMI (Body Mass Index) also has a clear impact on smokers")
+        st.write("This chart shows that BMI has a complex effect. For non-smokers, costs only jump significantly once BMI passes a high threshold (around 30). For smokers, however, any increase in BMI is linked to a steep rise in cost")
         
         fig2, ax2 = plt.subplots(figsize=(10, 6))
         sns.scatterplot(data=df_raw, x='bmi', y='charges', hue='smoker', alpha=0.7, ax=ax2)
@@ -137,12 +149,12 @@ elif page == "📊 Data Visualizations":
 
     with tab3:
         st.header("Descriptive Statistics")
-        st.write("Here are the mean, min, max, and standard deviation for our raw data.")
+        st.write("Here are the mean, min, max, and standard deviation for our raw data")
         st.dataframe(df_raw[['age', 'bmi', 'children', 'charges']].describe())
 
     with tab4:
         st.header("Feature Correlation Heatmap")
-        st.write("This map shows how strongly each feature is related to 'charges'.")
+        st.write("This map shows how strongly each feature is related to 'charges'")
         
         corr = df_processed.corr()
         
@@ -156,7 +168,7 @@ elif page == "📊 Data Visualizations":
 elif page == "🤖 Model Prediction & Evaluation":
     
     st.title("Insurance Premium Calculator 🧮")
-    st.write("Use this tool to predict costs for a new client.")
+    st.write("Use this tool to predict costs for a new client")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -192,35 +204,12 @@ elif page == "🤖 Model Prediction & Evaluation":
         prediction = model.predict(input_data)
         
         st.subheader("Prediction Results")
-        
-        col_pred, col_avg = st.columns(2)
-        with col_pred:
-            st.metric(label="Model's Predicted Cost", value=f"${prediction[0]:,.2f}")
-
-        # find similar people in the training data
-        age_bin = (age - 3, age + 3) 
-        bmi_bin = (bmi - 2, bmi + 2) 
-        
-        similar_group = train_df[
-            (train_df['smoker'] == smoker_val) &
-            (train_df['sex'] == sex_val) &
-            (train_df['age'].between(age_bin[0], age_bin[1])) &
-            (train_df['bmi'].between(bmi_bin[0], bmi_bin[1]))
-        ]
-        
-        with col_avg:
-            # show group average
-            if len(similar_group) > 5: 
-                avg_cost = similar_group['charges'].mean()
-                st.metric(label=f"Average Cost for Similar Group (n={len(similar_group)})", value=f"${avg_cost:,.2f}")
-            else:
-                st.info("Not enough data on similar people to show a group average.")
-
+        st.metric(label="Model's Predicted Cost", value=f"${prediction[0]:,.2f}")
 
     st.markdown("---")
 
     st.title("Model Evaluation 🔬")
-    st.write("This shows how well our model performed on the 20% 'test set'.")
+    st.write("This shows how well our model performed on the 20% 'test set'")
 
     col_r2, col_mae, col_rmse = st.columns(3)
     with col_r2:
@@ -237,7 +226,7 @@ elif page == "🤖 Model Prediction & Evaluation":
     """)
 
     st.header("Actual vs. Predicted Costs (Test Data)")
-    st.write("The red line is a 'perfect' prediction. Our model's predictions (blue dots) follow this line very closely.")
+    st.write("The red line is a 'perfect' prediction. Our model's predictions (blue dots) follow this line very closely")
     
     fig3, ax3 = plt.subplots(figsize=(10, 6))
     sns.scatterplot(data=eval_df, x='Actual', y='Predicted', alpha=0.7, ax=ax3)
@@ -247,6 +236,6 @@ elif page == "🤖 Model Prediction & Evaluation":
     st.pyplot(fig3)
 
     st.header("What Did Our Model Learn?")
-    st.write("These 'coefficients' tell us how much each factor impacts the final cost.")
+    st.write("These 'coefficients' tell us how much each factor impacts the final cost")
     st.dataframe(coefs.round(2))
     

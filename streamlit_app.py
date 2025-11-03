@@ -48,7 +48,6 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 r2 = r2_score(y_test, y_pred)
 mae = mean_absolute_error(y_test, y_pred)
-mse = mean_squared_error(y_test, y_pred) 
 
 # prep dataframes for charts
 eval_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
